@@ -6,7 +6,7 @@ from PIL import ImageDraw
 from functools import partial
 from multiprocessing import cpu_count, Pool, current_process
 
-from typing import Callable
+from typing import Callable, Union
 
 
 def parallelize_filter_images(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None):
@@ -42,7 +42,7 @@ def save_image(dataset: ImageFolder, default_folder: Path):
     print('\nStandardised images saved!!')
 
 
-def generate_mask(path: Path, model: str = 'hog') -> Image:
+def generate_mask(path: Path, model: str = 'hog') -> Union[Image, Path]:
     image = fr.load_image_file(path.as_posix())
 
     face_landmarks_list = fr.face_landmarks(
