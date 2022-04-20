@@ -5,10 +5,11 @@ RUN apt-get update
 ENV APP_HOME main/
 WORKDIR $APP_HOME
 
-COPY . .
+COPY req/requirements_train_cuda102.txt .
+COPY *.py .
 
 RUN mkdir data
 
-RUN pip install -r requirements_train.txt
+RUN pip install -r req/requirements_train_cuda102.txt
 
 ENTRYPOINT ["python3", "full_pipeline.py"]

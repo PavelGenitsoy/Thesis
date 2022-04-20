@@ -1,5 +1,6 @@
+# venv
 venv
-venv*
+
+# folders
 data
-test.py
-req
+preproccesing_dataset_and_analyzing_results
