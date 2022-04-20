@@ -40,7 +40,7 @@ def fit(
             print(f"[INFO] {count + 1} iteration wasn't significant changes!")
             count += 1
 
-        if count == 2 or (epoch + 1) == n_epochs:
+        if count == 3 or (epoch + 1) == n_epochs:
             if not fold:
                 check_point_path = Path(f'{model_folder}/checkpoint/{model_folder.name}_checkpoint_{epoch:02d}.pt')
                 torch.save(model.state_dict(), check_point_path.as_posix())

@@ -87,11 +87,11 @@ def standardization(
     return ImageFolder(picts.as_posix(), transform=transformer)
 
 
-def show_photos(data: list, grid_size: tuple):
+def show_photos(data: list, grid_size: tuple, image_size: Tuple[int, int] = (256, 256)):
     data_ = []
     for ar in data:
         im_pillow = Image.fromarray((ar * 255).astype(np.uint8))
-        im_pillow = im_pillow.resize((256, 256))
+        im_pillow = im_pillow.resize(image_size)
         data_.append(np.asarray(im_pillow))
 
     h, w = grid_size
@@ -107,12 +107,12 @@ def show_photos(data: list, grid_size: tuple):
     plt.show()
 
 
-def get_photos(data: list, flag: bool = True) -> List[np.ndarray]:
+def get_photos(data: list, image_size: Tuple[int, int] = (256, 256), flag: bool = True) -> List[np.ndarray]:
     photos = []
 
     for p in data:
         image = Image.open(p.as_posix()).convert('RGB')
-        image = image.resize((256, 256))
+        image = image.resize(image_size)
         photos.append(np.asarray(image))
 
     del image
@@ -192,11 +192,31 @@ def get_normal_photos(images_idxs: torch.Tensor, main_ds: ImageFolder) -> List[n
     return [get_numpy_from_tenzor(main_ds[idx][0]) for idx in images_idxs.numpy()]
 
 
-def rewrite_lib_file(path_to_file: str):
+def rewrite_lib_file_torch_dataset(path_to_file: str):
+    # python3.8/dist-packages/torchvision/datasets/folder.py
     with open(path_to_file, 'r') as f:
         lines = f.readlines()
 
     res = lines[:183] + ['        return sample, target, index\n'] + lines[184:]
+
+    with open(path_to_file, 'w') as f:
+        for item in res:
+            f.write(item)
+
+
+def rewrite_lib_file_fr_api(path_to_file: str):
+    # python3.8/dist-packages/face_recognition/api.py
+    with open(path_to_file, 'r') as f:
+        lines = f.readlines()
+
+    add_part_to_api_file = [
+        "    elif model == 'custom':\n",
+        '        return [{\n',
+        '            "mask_55": points[2:15] + points[31:36]\n',
+        '        } for points in landmarks_as_tuples]\n'
+    ]
+
+    res = lines[:198] + add_part_to_api_file + lines[198:]
 
     with open(path_to_file, 'w') as f:
         for item in res:
