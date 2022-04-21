@@ -10,6 +10,6 @@ COPY *.py .
 
 RUN mkdir data
 
-RUN pip install -r req/requirements_train_cuda102.txt
+RUN pip install -r requirements_train_cuda102.txt
 
 ENTRYPOINT ["python3", "full_pipeline.py"]
