@@ -1,7 +1,4 @@
 import pandas as pd
-import argparse
-
-from sagemaker.s3 import parse_s3_url
 
 from train_and_evaluate import train, evaluate
 from utils import *
@@ -55,10 +52,10 @@ def fit(
 
 
 def init_and_launch(
-        ds_classes: list, model_name: str, lr: float, key_path: Path, max_epochs: int, dl: DataLoader,
+        ds_classes: int, model_name: str, lr: float, key_path: Path, max_epochs: int, dl: DataLoader,
         val_dl: DataLoader, train_ids: np.ndarray, valid_ids: np.ndarray, fold: int = 0
 ) -> float:
-    model = FaceRecog(num_classes=len(ds_classes), model_name=model_name).to(device)
+    model = FaceRecog(num_classes=ds_classes, model_name=model_name).to(device)
     reset_weights(model)
     # model.summary(standard_dataset[0][0].size())
 
@@ -76,14 +73,21 @@ def get_parser():
 
     parser.add_argument("--server", type=int, required=True, help='Number of server')
 
-    parser.add_argument("--models", nargs='+', required=True, choices=['all', *models_dict.keys()],
+    parser.add_argument("--models", nargs='+', type=str, required=True, choices=['all', *models_dict.keys()],
                         help='List of models or all, example: --models resnet18 vgg11 | example: --models all')
 
     parser.add_argument("--batch_size", type=int, default=16, help='Batch size for data loader')
 
     parser.add_argument("--max_epochs", type=int, default=40, help='Max count of epochs for training')
 
-    parser.add_argument("--input", type=str, required=True, help='S3 path to zip file with prepared datasets')
+    parser.add_argument("--mixed", type=bool, default=False,
+                        help='if True: generates binomial distribution, gets specific indexes of images from datasets'
+                             'by binomial distribution and create concat_dataset from this selected images which is'
+                             'used in training'
+                             'IMPORTANT ==> works only if you pass to --input s3 paths to two datasets')
+
+    parser.add_argument("--input", nargs='+', type=str, required=True,
+                        help='S3 path/s to zip file/s with prepared dataset/s')
 
     parser.add_argument("--output", type=str, required=True,
                         help='S3 path to folder for saving logs, errors, checkpoints')
@@ -93,6 +97,14 @@ def get_parser():
 
 def main() -> None:
     args = get_parser().parse_args()
+
+    assert len(args.input) in (1, 2), \
+        f'########### ERROR: Too much inputs {args.input}, only 1 or 2 value/s ###########'
+
+    if len(args.input) == 1:
+        assert not args.mixed, f'########### ERROR: Only 1 input but mixed={args.mixed} its impossible ###########'
+    elif len(args.input) == 2:
+        assert args.mixed, f'########### ERROR: 2 inputs but mixed={args.mixed} its impossible ###########'
 
     if 'all' in args.models:
         selected_models = models_dict.keys()
@@ -107,20 +119,31 @@ def main() -> None:
     s3_path_output = s3_path_output.rstrip('/')
     s3_path_output = f'{s3_path_output}/server_{args.server:02d}'
 
-    bucket_input, s3_path_input = parse_s3_url(args.input)
-    s3_path_input = Path(s3_path_input.rstrip('/'))
+    s3_inputs = get_modified_s3_input_paths(args.input)
 
     train_path = Path('data/train')
     input_datasets_folder = Path('data/input')
     input_datasets_folder.mkdir(parents=True, exist_ok=True)
 
-    download_and_unzip_dataset(bucket_input, bucket_output, s3_path_input, s3_path_output, input_datasets_folder)
+    download_and_unzip_dataset(bucket_output, s3_inputs, s3_path_output, input_datasets_folder)
 
-    standard_dataset = ImageFolder(
-        (input_datasets_folder / s3_path_input.stem).as_posix(), transform=transforms.ToTensor()
-    )
+    if not args.mixed:
+        _, s3_path_input = s3_inputs[0]
+        standard_dataset = ImageFolder(
+            (input_datasets_folder / s3_path_input.stem).as_posix(), transform=transforms.ToTensor()
+        )
 
-    train_idx, test_idx = split_ds(standard_dataset)
+        n_classes = len(standard_dataset.classes)
+        targets = np.array(standard_dataset.targets)
+    else:
+        n_classes, binomial_distribution, standard_dataset = get_mixed_dataset(s3_inputs, input_datasets_folder)
+
+        n_unique_targets, targets = get_targets_for_mixed_dataset(standard_dataset, binomial_distribution)
+
+        assert n_classes == n_unique_targets.shape[0], \
+            '########### ERROR: different count of classes after get mixed dataset and targets ###########'
+
+    train_idx, test_idx = split_ds(len(standard_dataset), targets)
 
     tq_model = tqdm(selected_models, total=len(selected_models))
     for key in tq_model:
@@ -140,7 +163,7 @@ def main() -> None:
 
             try:
                 fold_eval_acc = init_and_launch(
-                    standard_dataset.classes, key, learning_rate, key_path, args.max_epochs, dl, val_dl, fold_train_ids,
+                    n_classes, key, learning_rate, key_path, args.max_epochs, dl, val_dl, fold_train_ids,
                     fold_valid_ids, fold
                 )
 
@@ -162,8 +185,7 @@ def main() -> None:
         print('--------------------------------')
         try:
             test_acc = init_and_launch(
-                standard_dataset.classes, key, learning_rate, key_path, args.max_epochs, dl, test_dl, train_idx,
-                test_idx
+                n_classes, key, learning_rate, key_path, args.max_epochs, dl, test_dl, train_idx, test_idx
             )
         except Exception as error:
             boto3.resource('s3').Object(

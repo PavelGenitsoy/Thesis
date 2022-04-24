@@ -5,27 +5,32 @@ import torch
 import boto3
 import zipfile
 import subprocess as sp
+import argparse
 
 from PIL import Image
 
 from sklearn.model_selection import train_test_split, KFold
 
+from sagemaker.s3 import parse_s3_url
 # from sagemaker.utils import download_folder
 # from sagemaker.session import Session
 
+from torchvision import transforms
 from torchvision.datasets import ImageFolder
+
 from torch.utils.data import DataLoader, SubsetRandomSampler
-# from torch.utils.data.dataset import Subset
+from torch.utils.data.dataset import Subset, ConcatDataset
 
 from multiprocessing import cpu_count
 from tqdm import tqdm
-from typing import Tuple, List
+from typing import Tuple, List, Union
 from pathlib import Path
 from time import time
 from gc import collect
 
-
-torch.manual_seed(47)
+RS = 47
+torch.manual_seed(RS)
+np.random.seed(RS)
 
 N_FOLDS = 5
 etalon_datasets = {'standardized_with_normalized_105_pins': 'input/etalon_105_classes_pins_dataset.zip'}
@@ -56,13 +61,9 @@ def get_dls(
     return dl, val_dl
 
 
-def split_ds(ds: ImageFolder) -> Tuple[np.ndarray, np.ndarray]:
+def split_ds(len_ds: int, targets: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     train_idx, test_idx = train_test_split(
-        np.arange(len(ds)),
-        test_size=0.1,
-        shuffle=True,
-        stratify=ds.targets,
-        random_state=47
+        np.arange(len_ds), test_size=0.1, shuffle=True, stratify=targets, random_state=RS
     )
     return train_idx, test_idx
 
@@ -142,15 +143,17 @@ def get_numpy_from_tenzor(image: torch.Tensor) -> np.ndarray:
     return np.clip(image, 0, 1)
 
 
-def download_and_unzip_dataset(
-        bucket_input: str, bucket_output: str, s3_path_input: Path, s3_path_output: str, local_folder: Path
-):
+def download_and_unzip_dataset(bucket_output: str, s3_inputs: list, s3_path_output: str, local_folder: Path):
     try:
-        print(f'Downloading dataset (zip archive) from s3 ({s3_path_input})')
         start = time()
-        boto3.client('s3').download_file(bucket_input, s3_path_input.as_posix(), f'{local_folder}/{s3_path_input.name}')
-        # download_folder(bucket, key, local_folder.as_posix(), Session())
-        print(f'Dataset is downloaded! Wasted time = {time() - start:.1f} sec')
+        for t in s3_inputs:
+            bucket_input, s3_path_input = t
+            print(f'Downloading dataset (zip archive) from s3 ({s3_path_input})')
+            boto3.client('s3').download_file(
+                bucket_input, s3_path_input.as_posix(), f'{local_folder}/{s3_path_input.name}'
+            )
+            # download_folder(bucket, key, local_folder.as_posix(), Session())
+        print(f'Dataset/s is/are downloaded! Wasted time = {time() - start:.1f} sec')
     except Exception as e:
         boto3.resource('s3').Object(
             bucket_output,
@@ -236,3 +239,55 @@ def add_mean_std_to_list(l: List[float]):
     l.extend([mean, std])
 
     return l
+
+
+def get_modified_s3_input_paths(inputs: argparse.Namespace) -> List[Tuple[str, Path]]:
+    content = []
+    for i in inputs:
+        bucket_input, s3_path_input = parse_s3_url(i)
+        s3_path_input = Path(s3_path_input.rstrip('/'))
+        content.append((bucket_input, s3_path_input))
+    return content
+
+
+def get_binomial_distribution(n: int, p: float, size: int) -> np.ndarray:
+    return np.random.binomial(n=n, p=p, size=size)
+
+
+def get_mixed_dataset(
+        s3_inputs: List[Tuple[str, Path]], input_datasets_folder: Path
+) -> Tuple[int, np.ndarray, ConcatDataset]:
+
+    _, s3_path_input1 = s3_inputs[0]
+    standard_dataset1 = ImageFolder(
+        (input_datasets_folder / s3_path_input1.stem).as_posix(), transform=transforms.ToTensor()
+    )
+
+    _, s3_path_input2 = s3_inputs[1]
+    standard_dataset2 = ImageFolder(
+        (input_datasets_folder / s3_path_input2.stem).as_posix(), transform=transforms.ToTensor()
+    )
+
+    assert len(standard_dataset1.classes) == len(standard_dataset2.classes), \
+        '########### ERROR: different count of classes in 2 datasets ###########'
+
+    assert len(standard_dataset1) == len(standard_dataset2), \
+        '########### ERROR: different shape of datasets ###########'
+
+    binomial_distribution = get_binomial_distribution(n=1, p=0.5, size=len(standard_dataset1))
+    all_indexes = np.arange(len(standard_dataset1))
+
+    subset1 = Subset(standard_dataset1, all_indexes[binomial_distribution.astype(bool)])
+    subset2 = Subset(standard_dataset2, all_indexes[~binomial_distribution.astype(bool)])
+
+    return len(standard_dataset1.classes), binomial_distribution, ConcatDataset([subset1, subset2])
+
+
+def get_targets_for_mixed_dataset(
+        standard_dataset: ConcatDataset, binomial_distribution: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
+
+    lbl = np.array([standard_dataset[i][1] for i in range(len(standard_dataset))])
+    targets = np.concatenate((lbl.reshape((-1, 1)), binomial_distribution.reshape((-1, 1))), axis=1)
+
+    return np.unique(targets), targets
