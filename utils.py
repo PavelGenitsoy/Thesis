@@ -6,8 +6,10 @@ import boto3
 import zipfile
 import subprocess as sp
 import argparse
+import face_recognition as fr
 
-from PIL import Image
+from PIL.Image import Image
+from PIL import ImageDraw
 
 from sklearn.model_selection import train_test_split, KFold
 
@@ -21,9 +23,11 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch.utils.data.dataset import Subset, ConcatDataset
 
-from multiprocessing import cpu_count
+from functools import partial
+from multiprocessing import cpu_count, Pool, current_process
+
 from tqdm import tqdm
-from typing import Tuple, List, Union
+from typing import Tuple, List, Union, Callable
 from pathlib import Path
 from time import time
 from gc import collect
@@ -241,7 +245,7 @@ def add_mean_std_to_list(l: List[float]):
     return l
 
 
-def get_modified_s3_input_paths(inputs: argparse.Namespace) -> List[Tuple[str, Path]]:
+def get_modified_s3_input_paths(inputs: Union[argparse.Namespace, list]) -> List[Tuple[str, Path]]:
     content = []
     for i in inputs:
         bucket_input, s3_path_input = parse_s3_url(i)
@@ -291,3 +295,94 @@ def get_targets_for_mixed_dataset(
     targets = np.concatenate((lbl.reshape((-1, 1)), binomial_distribution.reshape((-1, 1))), axis=1)
 
     return np.unique(targets), targets
+
+
+def parallelize_filter_images(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None):
+    if n_jobs is None:
+        cores = cpu_count()
+    else:
+        cores = n_jobs
+    available_data = data.shape[0]
+    if available_data < cores:
+        cores = available_data
+    data_split = np.array_split(data, cores)
+    pool = Pool(cores)
+    pool.map(partial(func, **kwargs), data_split)
+    pool.close()
+    pool.join()
+
+
+def creates_folders(folders_names: list, default_folder: Path):
+    for i in folders_names:
+        (default_folder / Path(i)).mkdir(parents=True, exist_ok=True)
+    print('\nFolders created!!')
+
+
+def save_image(dataset: ImageFolder, default_folder: Path):
+    for idx, (p, lbl) in tqdm(enumerate(dataset.imgs), total=len(dataset.imgs), desc=f'Progress bar...'):
+        arr = get_numpy_from_tenzor(dataset[idx][0])
+
+        image = Image.fromarray((arr * 255).astype(np.uint8)).convert('RGB')
+        image.save(f"{default_folder}/{dataset.classes[lbl]}/{Path(p).name}")
+
+    del arr
+    collect()
+    print('\nStandardised images saved!!')
+
+
+def generate_mask(path: Path, model: str = 'hog') -> Union[Image, Path]:
+    image = fr.load_image_file(path.as_posix())
+
+    face_landmarks_list = fr.face_landmarks(
+        image,
+        face_locations=fr.face_locations(image, number_of_times_to_upsample=0, model=model),
+        model='custom'
+    )
+
+    if face_landmarks_list:
+        pil_image = Image.fromarray(image)
+        d = ImageDraw.Draw(pil_image)
+        d.polygon((face_landmarks_list[0]['mask_55']), fill='#00bfff')
+        return pil_image
+    else:
+        return path
+
+
+def processing_photos(dataset: np.ndarray, output_photos_folder: Path, classes: list, type_model: str):
+    tqdm_batch = tqdm(dataset, total=dataset.shape[0], desc=f'Processing ({current_process().name})...')
+    for path_to_file, lbl in tqdm_batch:
+        path_to_file = Path(path_to_file)
+        file_name, label = path_to_file.name, Path(classes[eval(lbl)])
+
+        (output_photos_folder / label).mkdir(parents=True, exist_ok=True)
+
+        pil_image = generate_mask(path_to_file, model=type_model)
+        if isinstance(pil_image, Path):
+            with open(f'data/skipped_images_for_{type_model}_by_{current_process().name}.txt', 'a') as f:
+                print(pil_image, file=f)
+        else:
+            pil_image.save(output_photos_folder / label / file_name)
+
+
+def get_cross_val_from_s3(bucket: str, s3_input: Path, local_folder: Path) -> None:
+    response = boto3.client('s3').list_objects_v2(Bucket=bucket, Prefix=s3_input.as_posix())
+
+    assert response.get('Contents'), \
+        f'########### ERROR: Attribute error. Response={response} doesn\'t have Contents ###########'
+
+    for d in response['Contents']:
+        if d['Key'].endswith('/'):
+            continue
+
+        key = Path(d['Key'])
+        if key.stem == 'history_cross_validation':
+            key_parts = key.parts
+
+            path_to_save = local_folder / Path(key_parts[0])
+            path_to_save.mkdir(parents=True, exist_ok=True)
+
+            boto3.client('s3').download_file(
+                bucket, key.as_posix(), f'{path_to_save}/{key.stem}_{key_parts[-2]}{key.suffix}'
+            )
+
+    print(f'From {s3_input}: history_cross_validation files are downloaded!')

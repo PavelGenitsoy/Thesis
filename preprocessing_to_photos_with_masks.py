@@ -1,5 +1,4 @@
 from utils import *
-from torchvision import transforms
 
 
 def main():
