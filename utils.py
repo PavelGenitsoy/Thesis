@@ -17,7 +17,6 @@ from sagemaker.s3 import parse_s3_url
 # from sagemaker.utils import download_folder
 # from sagemaker.session import Session
 
-from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
 from torch.utils.data import DataLoader, SubsetRandomSampler
@@ -264,12 +263,12 @@ def get_mixed_dataset(
 
     _, s3_path_input1 = s3_inputs[0]
     standard_dataset1 = ImageFolder(
-        (input_datasets_folder / s3_path_input1.stem).as_posix(), transform=transforms.ToTensor()
+        (input_datasets_folder / s3_path_input1.stem).as_posix(), transform=T.ToTensor()
     )
 
     _, s3_path_input2 = s3_inputs[1]
     standard_dataset2 = ImageFolder(
-        (input_datasets_folder / s3_path_input2.stem).as_posix(), transform=transforms.ToTensor()
+        (input_datasets_folder / s3_path_input2.stem).as_posix(), transform=T.ToTensor()
     )
 
     assert len(standard_dataset1.classes) == len(standard_dataset2.classes), \

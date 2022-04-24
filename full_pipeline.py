@@ -4,8 +4,6 @@ from train_and_evaluate import train, evaluate
 from utils import *
 from face_recog import *
 
-from torchvision import transforms
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -130,7 +128,7 @@ def main() -> None:
     if not args.mixed:
         _, s3_path_input = s3_inputs[0]
         standard_dataset = ImageFolder(
-            (input_datasets_folder / s3_path_input.stem).as_posix(), transform=transforms.ToTensor()
+            (input_datasets_folder / s3_path_input.stem).as_posix(), transform=T.ToTensor()
         )
 
         n_classes = len(standard_dataset.classes)
@@ -223,7 +221,7 @@ def test():
     # etalon_dataset_s3_key = Path(etalon_datasets[s3_path_input.stem])
 
     # main_dataset = ImageFolder(
-    #     (input_datasets_folder / etalon_dataset_s3_key.stem).as_posix(), transform=transforms.ToTensor()
+    #     (input_datasets_folder / etalon_dataset_s3_key.stem).as_posix(), transform=T.ToTensor()
     # )
 
     for dire in input_datasets_folder.glob('*'):
@@ -234,8 +232,8 @@ def test():
             # indexes = [random.randint(0, len(standard_images_list) - 1) for _ in range(4)]
             # show_photos(get_photos([standard_images_list[idx] for idx in indexes]), (2, 2))
 
-            main_dataset = ImageFolder('data/input/105_classes_pins_dataset', transform=transforms.ToTensor())
-            standard_dataset = ImageFolder(dire.as_posix(), transform=transforms.ToTensor())
+            main_dataset = ImageFolder('data/input/105_classes_pins_dataset', transform=T.ToTensor())
+            standard_dataset = ImageFolder(dire.as_posix(), transform=T.ToTensor())
 
             # arr = get_numpy_from_tenzor(standard_dataset[5469][0])
             # image = Image.fromarray((arr * 255).astype(np.uint8)).convert('RGB')
