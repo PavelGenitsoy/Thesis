@@ -363,11 +363,13 @@ def processing_photos(dataset: np.ndarray, output_photos_folder: Path, classes: 
             pil_image.save(output_photos_folder / label / file_name)
 
 
-def get_cross_val_from_s3(bucket: str, s3_input: Path, local_folder: Path) -> None:
+def get_cross_val_from_s3(bucket: str, s3_input: Path, local_folder: Path) -> Path:
     response = boto3.client('s3').list_objects_v2(Bucket=bucket, Prefix=s3_input.as_posix())
 
     assert response.get('Contents'), \
         f'########### ERROR: Attribute error. Response={response} doesn\'t have Contents ###########'
+
+    path_to_save = Path()
 
     for d in response['Contents']:
         if d['Key'].endswith('/'):
@@ -383,5 +385,6 @@ def get_cross_val_from_s3(bucket: str, s3_input: Path, local_folder: Path) -> No
             boto3.client('s3').download_file(
                 bucket, key.as_posix(), f'{path_to_save}/{key.stem}_{key_parts[-2]}{key.suffix}'
             )
-
     print(f'From {s3_input}: history_cross_validation files are downloaded!')
+
+    return path_to_save

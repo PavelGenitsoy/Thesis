@@ -20,18 +20,16 @@ def main() -> None:
     s3_inputs = get_modified_s3_input_paths(args.input)
 
     for s3_tuple in s3_inputs:
-        get_cross_val_from_s3(s3_tuple[0], s3_tuple[1], local_folder)
+        exp_folder = get_cross_val_from_s3(s3_tuple[0], s3_tuple[1], local_folder)
 
-    for subfolder in local_folder.glob('*'):
-        if subfolder.is_dir():
-            df_main = pd.DataFrame([], dtype=np.float64)
-            for file in subfolder.glob('*.csv'):
-                tmp = pd.read_csv(file, dtype=np.float64)
-                df_main = pd.concat([df_main, tmp], axis=1)
+        df_main = pd.DataFrame([], dtype=np.float64)
+        for file in exp_folder.glob('*.csv'):
+            tmp = pd.read_csv(file, dtype=np.float64)
+            df_main = pd.concat([df_main, tmp], axis=1)
 
-            df_main.sort_values(by=df_main.index[-1], axis=1, ascending=False, inplace=True)
-            df_main.to_csv(f'{subfolder}/history_cross_validation_sorted_by_train_scores.csv', index=False)
-            print(f'{subfolder.name}: combining dataframes and sorting by scores on the train are done!')
+        df_main.sort_values(by=df_main.index[-1], axis=1, ascending=False, inplace=True)
+        df_main.to_csv(f'{exp_folder}/history_cross_validation_sorted_by_train_scores.csv', index=False)
+        print(f'{exp_folder.name}: combining dataframes and sorting by scores on the train are done!')
 
 
 if __name__ == '__main__':
