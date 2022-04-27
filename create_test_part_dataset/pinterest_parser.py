@@ -1,4 +1,5 @@
 import time
+import argparse
 
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
+from tqdm import tqdm
 from threading import Thread, Lock
 from queue import Queue
 from cv2 import imwrite, imdecode, resize
@@ -64,7 +66,7 @@ class Ilister:
 
         images = driver.find_elements(By.TAG_NAME, 'img')
 
-        Path(f'../data/parsed_from_pinterest/pins_{fn}').mkdir(parents=True, exist_ok=True)
+        Path(f'data/parsed_from_pinterest/pins_{fn}').mkdir(parents=True, exist_ok=True)
 
         q = 0
         for image in images:
@@ -111,7 +113,7 @@ class Downloader:
             if self.reshapep:
                 img = resize(img, self.shape)
 
-            imwrite(f"../data/parsed_from_pinterest/pins_{self.fn}/{self.fn}{number}.jpg", img)
+            imwrite(f"data/parsed_from_pinterest/pins_{self.fn}/{self.fn}{number}.jpg", img)
 
         self.proc += self.fpi
         if self.pbar is not None:
@@ -126,7 +128,7 @@ class Downloader:
             Ilister.ilist.task_done()
 
 
-def launching(keyword: str, numberl: int, reshape: bool, shape=(256, 256), pbar=None):
+def launching(keyword: str, numberl: int, reshape: bool, shape: tuple = (256, 256), pbar=None):
     if pbar is not None:
         pbar.setValue(5)
 
@@ -140,14 +142,43 @@ def launching(keyword: str, numberl: int, reshape: bool, shape=(256, 256), pbar=
     bingo.DONE = Thread
 
 
-def main():
-    """
-    TOD:
-    - add argument like input (by name or all)
-    """
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
-    launching('Alex Lawther', 600, False)
-    print("Done!")
+    parser.add_argument("--keyword", nargs='+', type=str, required=True,
+                        help='List of keywords or all, example: --keyword "Adriana Lima" | example: --keyword all')
+
+    parser.add_argument("--quantity", type=int, default=100, help='Count of images that need to download by keyword')
+
+    parser.add_argument("--shape", nargs='+', type=int, default=[],
+                        help='Need only 2 values (width, height) of image, example: --shape 256 256')
+
+    return parser
+
+
+def main() -> None:
+    args = get_parser().parse_args()
+
+    reshaped = False
+    new_shape = tuple()
+
+    if args.shape:
+        assert len(args.shape) == 2, \
+            f'########### ERROR: Need only 2 values of shape images (width, height). But get: {args.input} ###########'
+        reshaped = True
+        new_shape = args.shape
+
+    if 'all' in args.keyword:
+        keywords = sorted([p.name.split('_')[-1] for p in Path('data/input/105_classes_pins_dataset').glob('*')])
+    else:
+        keywords = args.keyword
+
+    tq_batch = tqdm(keywords, total=len(keywords))
+    for keyword in tq_batch:
+        tq_batch.set_description(f'Parsing...[{keyword}]')
+
+        launching(keyword, args.quantity, reshaped, new_shape)
+        print(f'=========> Parsing {keyword} is done!! <=========')
 
 
 if __name__ == '__main__':
