@@ -177,8 +177,14 @@ def main() -> None:
     for keyword in tq_batch:
         tq_batch.set_description(f'Parsing...[{keyword}]')
 
-        launching(keyword, args.quantity, reshaped, new_shape)
-        print(f'=========> Parsing {keyword} is done!! <=========')
+        try:
+            launching(keyword, args.quantity, reshaped, new_shape)
+            print(f'=========> Parsing {keyword} is done!! <=========')
+        except Exception as error:
+            with open('data/errors_in_parsing.txt', mode='a') as f:
+                print(f'{keyword}: {error}\n', file=f)
+            print(f'########### ERROR: Problems with parsing {keyword}! ###########')
+            continue
 
 
 if __name__ == '__main__':
