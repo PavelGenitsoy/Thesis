@@ -47,18 +47,21 @@ def get_data(url: str, nmb: int) -> np.ndarray:
 
         if bfn == len(driver.find_elements(By.TAG_NAME, 'img')):
             samen += 1
-            if samen == 500:
+            if samen == 1000:
                 print(f"There is no enough image, breaking down... I'm gonna download {bfn} image")
                 nmb = bfn
                 break
         times += 1
         bfn = len(driver.find_elements(By.TAG_NAME, 'img'))
 
+        if not times % 500:
+            print(f'\n======> Was scrolled {times} times and find {bfn} images!')
+
         time.sleep(0.5)
 
     images = driver.find_elements(By.TAG_NAME, 'img')
 
-    print(f'\n======> Was scrolled {times} times and find {len(images)} images!')
+    print(f'\n======> In tne end was scrolled {times} times and find {len(images)} images!')
 
     assert len(images) > 4, \
         f'########### ERROR: Too small count of parsed images = {len(images)}. Need at least 5 ###########'
@@ -136,7 +139,7 @@ def main() -> None:
         try:
             start = time.time()
             data_array = get_data(link, args.quantity)
-            print(f'=========> Array which contains url and number of images for {keyword} was done !'
+            print(f'=========> Array which contains url and number of images for {keyword} was done! '
                   f'(wasted time = {time.time() - start:.2f} sec) <=========')
 
             parallelize(downloads, data_array, {'folder_name': keyword, 'reshape': reshape, 'shape': new_shape})
