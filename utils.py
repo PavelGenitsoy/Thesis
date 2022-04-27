@@ -296,7 +296,7 @@ def get_targets_for_mixed_dataset(
     return np.unique(targets), targets
 
 
-def parallelize_filter_images(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None):
+def parallelize(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None):
     if n_jobs is None:
         cores = cpu_count()
     else:

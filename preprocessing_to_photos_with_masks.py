@@ -15,7 +15,7 @@ def main():
 
     tqdm_batch_inputs = tqdm(triple, total=len(triple))
     for type_model, input_photos_folder, output_photos_folder in tqdm_batch_inputs:
-        filtered_dataset = ImageFolder(input_photos_folder.as_posix(), transform=transforms.ToTensor())
+        filtered_dataset = ImageFolder(input_photos_folder.as_posix(), transform=T.ToTensor())
 
         tqdm_batch_inputs.set_description(f'Filtered by {type_model}')
 
@@ -25,7 +25,7 @@ def main():
             'type_model': type_model
         }
 
-        parallelize_filter_images(processing_photos, np.array(filtered_dataset.imgs), params)
+        parallelize(processing_photos, np.array(filtered_dataset.imgs), params)
 
 
 if __name__ == '__main__':
