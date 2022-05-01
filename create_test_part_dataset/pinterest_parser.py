@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import argparse
+import os
 import sys
 
 from webdriver_manager.chrome import ChromeDriverManager
@@ -17,17 +18,18 @@ from cv2 import imwrite, imdecode, resize
 from urllib.request import urlopen
 
 sys.path.append(f'{sys.path[0]}/..')
-from utils import parallelize
+from utils import parallelize, get_dict_photos_paths_by_folder, get_numbers_of_images_by_each_folder
 
 
-parsed_photos = Path('data/parsed_from_pinterest')
+parsed_photos = Path('data/datasets_for_testing_part/parsed_from_pinterest')
 
 
-def get_data(url: str, nmb: int) -> np.ndarray:
+def get_data(url: str, nmb: int, close: bool = True) -> np.ndarray:
     options = Options()
     options.add_argument("--start-maximized")
     options.add_argument("--headless")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    print(f"Current session is {driver.session_id}")
     driver.get(url)
 
     times = 0
@@ -47,15 +49,19 @@ def get_data(url: str, nmb: int) -> np.ndarray:
 
         if bfn == len(driver.find_elements(By.TAG_NAME, 'img')):
             samen += 1
-            if samen == 1000:
+            if samen == 500:
                 print(f"There is no enough image, breaking down... I'm gonna download {bfn} image")
                 nmb = bfn
                 break
         times += 1
         bfn = len(driver.find_elements(By.TAG_NAME, 'img'))
 
-        if not times % 500:
-            print(f'\n======> Was scrolled {times} times and find {bfn} images!')
+        if not times % 250 and bfn <= 100:
+            driver.quit()
+
+            print('\n======> Rerun get_data()')
+            get_data(url, nmb, False)
+            # print(f'\n======> Was scrolled {times} times and find {bfn} images!')
 
         time.sleep(0.5)
 
@@ -72,7 +78,8 @@ def get_data(url: str, nmb: int) -> np.ndarray:
             break
         res.append((image.get_attribute('src'), str(idx)))
 
-    driver.close()
+    if close:
+        driver.quit()
 
     assert len(res) == nmb, \
         f'########### ERROR: Incorrect len of parsed data, got {len(res)} but need {nmb} ###########'
@@ -82,13 +89,17 @@ def get_data(url: str, nmb: int) -> np.ndarray:
 
 def downloads(data_ar: np.ndarray, folder_name: str, reshape: bool, shape: Tuple[int, int]):
     for data in data_ar.tolist():
-        image = imdecode(np.asarray(bytearray(urlopen(data[0]).read()), dtype="uint8"), -1)
+        try:
+            image = imdecode(np.asarray(bytearray(urlopen(data[0], timeout=20).read()), dtype="uint8"), -1)
 
-        if image is not None:
-            if reshape:
-                image = resize(image, shape)
+            if image is not None:
+                if reshape:
+                    image = resize(image, shape)
 
-            imwrite(f"{parsed_photos}/pins_{folder_name}/{folder_name}_{eval(data[1]):03d}.jpg", image)
+                imwrite(f"{parsed_photos}/pins_{folder_name}/{folder_name}_{eval(data[1]):03d}.jpg", image)
+        except TimeoutError as e:
+            with open('data/downloads_timeout_error.txt', mode='a') as f:
+                print(f'{data[0]}: {e}', file=f)
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -110,7 +121,6 @@ def main() -> None:
 
     reshape = False
     new_shape = (256, 256)
-
     if args.shape:
         assert len(args.shape) == 2, \
             f'########### ERROR: Need only 2 values of shape images (width, height). But get: {args.input} ###########'
@@ -140,10 +150,10 @@ def main() -> None:
             start = time.time()
             data_array = get_data(link, args.quantity)
             print(f'=========> Array which contains url and number of images for {keyword} was done! '
-                  f'(wasted time = {time.time() - start:.2f} sec) <=========')
+                  f'(wasted time = {time.time() - start:.2f} sec)')
 
             parallelize(downloads, data_array, {'folder_name': keyword, 'reshape': reshape, 'shape': new_shape})
-            print(f'=========> Parsing {keyword} is done!! <=========\n')
+            print(f'=========> Parsing {keyword} is done!!\n')
         except Exception as error:
             with open('data/errors_in_parsing.txt', mode='a') as f:
                 print(f'{keyword}: {error}\n', file=f)
@@ -151,5 +161,20 @@ def main() -> None:
             continue
 
 
+def check_bad_classes():
+    os.chdir(sys.path[-1])
+
+    before_filter_dict = get_numbers_of_images_by_each_folder(get_dict_photos_paths_by_folder(parsed_photos))
+    for key, value in before_filter_dict.items():
+        key = key.split("_")[-1]
+        if value <= 100:
+            print(f'\nThis key is very very small ==> {key} only has {value} images\n')
+        elif value in range(101, 401):
+            print(f'\nThis key is middle ==> {key} has {value} images\n')
+        else:
+            print(f'{value} images of {key}')
+
+
 if __name__ == '__main__':
     main()
+    # check_bad_classes()

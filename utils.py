@@ -22,6 +22,7 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torch.utils.data.dataset import Subset, ConcatDataset
 
+from itertools import chain
 from functools import partial
 from multiprocessing import cpu_count, Pool, current_process
 
@@ -35,6 +36,7 @@ RS = 47
 torch.manual_seed(RS)
 np.random.seed(RS)
 
+MEAN, STD = [0.516, 0.419, 0.373], [0.261, 0.235, 0.222]
 N_FOLDS = 5
 etalon_datasets = {'standardized_with_normalized_105_pins': 'input/etalon_105_classes_pins_dataset.zip'}
 
@@ -311,6 +313,22 @@ def parallelize(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None
     pool.join()
 
 
+def parallelize_upd(func: Callable, data: np.ndarray, kwargs: dict = {}, n_jobs=None) -> List[Path]:
+    if n_jobs is None:
+        cores = cpu_count()
+    else:
+        cores = n_jobs
+    available_data = data.shape[0]
+    if available_data < cores:
+        cores = available_data
+    data_split = np.array_split(data, cores)
+    pool = Pool(cores)
+    data = pool.map(partial(func, **kwargs), data_split)
+    pool.close()
+    pool.join()
+    return list(chain.from_iterable(data))
+
+
 def creates_folders(folders_names: list, default_folder: Path):
     for i in folders_names:
         (default_folder / Path(i)).mkdir(parents=True, exist_ok=True)
@@ -388,3 +406,18 @@ def get_cross_val_from_s3(bucket: str, s3_input: Path, local_folder: Path) -> Pa
     print(f'From {s3_input}: history_cross_validation files are downloaded!')
 
     return path_to_save
+
+
+def get_dict_photos_paths_by_folder(folder_with_images: Path) -> dict:
+    dict_of_105_pins = {}
+    for dire in folder_with_images.glob('*'):
+        if dire.is_dir():
+            dict_of_105_pins[dire.name] = list(dire.glob('*'))
+    return dict_of_105_pins
+
+
+def get_numbers_of_images_by_each_folder(d: dict) -> dict:
+    res_dict = {}
+    for key, val in d.items():
+        res_dict[key] = len(val)
+    return res_dict

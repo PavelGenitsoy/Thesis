@@ -207,7 +207,6 @@ def main() -> None:
 
 def test():
     learning_rate = 1e-4
-    mean, std = [0.516, 0.419, 0.373], [0.261, 0.235, 0.222]
 
     all_models = models_dict.keys()
 
