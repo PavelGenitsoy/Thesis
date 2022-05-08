@@ -6,10 +6,8 @@ import boto3
 import zipfile
 import subprocess as sp
 import argparse
-import face_recognition as fr
 
-from PIL.Image import Image
-from PIL import ImageDraw
+from PIL import ImageDraw, Image
 
 from sklearn.model_selection import train_test_split, KFold
 
@@ -35,6 +33,7 @@ from gc import collect
 RS = 47
 torch.manual_seed(RS)
 np.random.seed(RS)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 MEAN, STD = [0.516, 0.419, 0.373], [0.261, 0.235, 0.222]
 N_FOLDS = 5
@@ -347,7 +346,9 @@ def save_image(dataset: ImageFolder, default_folder: Path):
     print('\nStandardised images saved!!')
 
 
-def generate_mask(path: Path, model: str = 'hog') -> Union[Image, Path]:
+def generate_mask(path: Path, model: str = 'hog') -> Union[Image.Image, Path]:
+    import face_recognition as fr
+
     image = fr.load_image_file(path.as_posix())
 
     face_landmarks_list = fr.face_landmarks(

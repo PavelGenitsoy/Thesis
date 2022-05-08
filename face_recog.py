@@ -26,7 +26,6 @@ models_dict = {
     'vgg19_bn': models.vgg19_bn,
     'squeezenet1_0': models.squeezenet1_0,
     'squeezenet1_1': models.squeezenet1_1,
-    'googlenet': models.googlenet,
     'mobilenet_v2': models.mobilenet_v2,
     'mobilenet_v3_small': models.mobilenet_v3_small,
     'mobilenet_v3_large': models.mobilenet_v3_large,

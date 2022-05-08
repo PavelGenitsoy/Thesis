@@ -161,10 +161,10 @@ def main() -> None:
             continue
 
 
-def check_bad_classes():
+def check_bad_classes(photos_folder: Path):
     os.chdir(sys.path[-1])
 
-    before_filter_dict = get_numbers_of_images_by_each_folder(get_dict_photos_paths_by_folder(parsed_photos))
+    before_filter_dict = get_numbers_of_images_by_each_folder(get_dict_photos_paths_by_folder(photos_folder))
     for key, value in before_filter_dict.items():
         key = key.split("_")[-1]
         if value <= 100:
@@ -173,6 +173,7 @@ def check_bad_classes():
             print(f'\nThis key is middle ==> {key} has {value} images\n')
         else:
             print(f'{value} images of {key}')
+    print(f'Summary = {sum(before_filter_dict.values())}')
 
 
 if __name__ == '__main__':

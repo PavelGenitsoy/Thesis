@@ -5,9 +5,6 @@ from utils import *
 from face_recog import *
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
 def fit(
         n_epochs: int, model, train_dl: DataLoader, test_dl: DataLoader, loss_func: nn.CrossEntropyLoss,
         dev: torch.device, optimizer: torch.optim.Adam, train_idx: np.ndarray, valid_idx: np.ndarray,
