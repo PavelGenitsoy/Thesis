@@ -6,7 +6,7 @@ ENV APP_HOME main/
 WORKDIR $APP_HOME
 
 COPY req/requirements_train_cuda102.txt .
-COPY *.py .
+COPY *.py ./
 
 RUN mkdir data
 

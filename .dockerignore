@@ -3,4 +3,5 @@ venv
 
 # folders
 data
-preproccesing_dataset_and_analyzing_results
+create_test_part_dataset
+filters
