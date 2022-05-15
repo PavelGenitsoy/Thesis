@@ -37,7 +37,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 MEAN, STD = [0.516, 0.419, 0.373], [0.261, 0.235, 0.222]
 N_FOLDS = 5
-etalon_datasets = {'standardized_with_normalized_105_pins': 'input/etalon_105_classes_pins_dataset.zip'}
 
 
 def get_dict_from_list_of_dicts(l: List[dict]) -> dict:
