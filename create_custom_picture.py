@@ -23,10 +23,11 @@ def main(standardized, filtered, masks, mixed):
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Accuracy')
+    ax.set_xlabel('Models')
     ax.set_title('Accuracy by dataset and model')
     ax.set_xticks(x, labels)
 
-    ax.legend(loc='upper left')
+    ax.legend(loc='upper left', frameon=False)
 
     ax.bar_label(rects1, padding=2)
     ax.bar_label(rects2, padding=2)
