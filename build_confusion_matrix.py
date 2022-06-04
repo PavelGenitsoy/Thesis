@@ -11,10 +11,11 @@ from face_recog import FaceRecog
 
 from utils import (parse_s3_url, download_and_unzip_dataset, get_mixed_dataset, get_modified_s3_input_paths)
 from utils import RS
-from utils import (torch, Path, tqdm, DataLoader, cpu_count, device, time, boto3, plt)
+from utils import (torch, Path, tqdm, DataLoader, cpu_count, device, time, boto3, plt, np)
 
 
 torch.manual_seed(RS)
+np.random.seed(RS)
 
 
 def eval_custom(model, dl: DataLoader) -> Tuple[list, list]:

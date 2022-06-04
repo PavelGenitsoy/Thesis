@@ -6,10 +6,11 @@ from face_recog import FaceRecog, nn
 
 from utils import (parse_s3_url, download_and_unzip_dataset, get_mixed_dataset, get_modified_s3_input_paths)
 from utils import RS
-from utils import (torch, Path, tqdm, ConcatDataset, DataLoader, cpu_count, device, time, boto3)
+from utils import (torch, Path, tqdm, ConcatDataset, DataLoader, cpu_count, device, time, boto3, np)
 
 
 torch.manual_seed(RS)
+np.random.seed(RS)
 
 
 def download_checkpoints(exp: str, models_folder: Path):
