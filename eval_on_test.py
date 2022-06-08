@@ -6,7 +6,7 @@ from face_recog import FaceRecog, nn
 
 from utils import (parse_s3_url, download_and_unzip_dataset, get_mixed_dataset, get_modified_s3_input_paths)
 from utils import RS
-from utils import (torch, Path, tqdm, ConcatDataset, DataLoader, cpu_count, device, time, boto3, np)
+from utils import (torch, Path, tqdm, ConcatDataset, DataLoader, cpu_count, device, time, boto3, np, Tuple)
 
 
 torch.manual_seed(RS)
@@ -37,7 +37,7 @@ def download_checkpoints(exp: str, models_folder: Path):
             print(f'Downloaded {count}/50 models!')
 
 
-def init_and_launch(n: int, ds: ConcatDataset, model_name: str, dl: DataLoader, checkpoint: str) -> float:
+def init_and_launch(n: int, ds: ConcatDataset, model_name: str, dl: DataLoader, checkpoint: str) -> Tuple[float, float]:
     model = FaceRecog(num_classes=n, model_name=model_name, pretrained=False).to(device)
     model.load_state_dict(torch.load(checkpoint))
 
@@ -45,8 +45,9 @@ def init_and_launch(n: int, ds: ConcatDataset, model_name: str, dl: DataLoader, 
 
     start = time()
     _, result = evaluate(model, dl, criterion, device, len(ds))
-    print(f'\nWasted time on evaluation {model_name} model = {time() - start:.2f} sec')
-    return result
+    wasted_time = round(time() - start, 2)
+    print(f'\nWasted time on evaluation {model_name} model = {wasted_time} sec')
+    return result, wasted_time
 
 
 def get_parser():
@@ -69,7 +70,7 @@ def main():
         f'########### ERROR: Too much/little inputs {args.input}, only 2 values ###########'
 
     batch_size = args.batch_size if args.batch_size < 16 else 16
-    dict_test_acc = {}
+    dict_test = {}
 
     bucket_output, s3_path_output = parse_s3_url(args.output)
     s3_path_output = s3_path_output.rstrip('/')
@@ -96,7 +97,7 @@ def main():
 
         tqdm_batches.set_description(f'Evaluating [{model_name}]')
         try:
-            test_acc = init_and_launch(n_classes, standard_dataset, model_name, test_dl, model.as_posix())
+            test_acc, eval_time = init_and_launch(n_classes, standard_dataset, model_name, test_dl, model.as_posix())
         except Exception as error:
             boto3.resource('s3').Object(
                 bucket_output,
@@ -105,12 +106,12 @@ def main():
             print(f'Report of error in {s3_path_output}/errors/failed_evaluating_{model_name}.txt')
             continue
 
-        dict_test_acc[model_name] = test_acc
+        dict_test[model_name] = [test_acc, eval_time]
 
     file_name = Path('history_scores_on_test.csv')
 
-    df = pd.DataFrame.from_dict([dict_test_acc])
-    df.sort_values(by=df.index[-1], axis=1, ascending=False, inplace=True)
+    df = pd.DataFrame.from_dict(dict_test)
+    df.sort_values(by=df.index[0], axis=1, ascending=False, inplace=True)
     df.to_csv(file_name.as_posix(), index=False)
     boto3.resource('s3').Bucket(bucket_output).upload_file(file_name.as_posix(), f'{s3_path_output}/{file_name.name}')
 
