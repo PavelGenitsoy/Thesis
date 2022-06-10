@@ -57,10 +57,10 @@ plt.show()
 def main(standardized, filtered, masks, mixed):
     labels = ['shufflenetv2_x0_5', 'resnet50', 'efficientnet_b5', 'efficientnet_b3', 'convnext_tiny', 'convnext_small', 'convnext_base']
 
-    standardized_l = list(map(lambda x: round(x * 100,1) , [standardized['shufflenetv2_x0_5'][0], standardized['resnet50'][0], standardized['efficientnet_b5'][0], standardized['efficientnet_b3'][0], standardized['convnext_tiny'][0], standardized['convnext_small'][0], standardized['convnext_base'][0]]))
-    filtered_l = list(map(lambda x: round(x * 100,1) , [filtered['shufflenetv2_x0_5'][0], filtered['resnet50'][0], filtered['efficientnet_b5'][0], filtered['efficientnet_b3'][0], filtered['convnext_tiny'][0], filtered['convnext_small'][0], filtered['convnext_base'][0]]))
-    masks_l = list(map(lambda x: round(x * 100,1) , [masks['shufflenetv2_x0_5'][0], masks['resnet50'][0], masks['efficientnet_b5'][0], masks['efficientnet_b3'][0], masks['convnext_tiny'][0], masks['convnext_small'][0], masks['convnext_base'][0]]))
-    mixed_l = list(map(lambda x: round(x * 100,1) , [mixed['shufflenetv2_x0_5'][0], mixed['resnet50'][0], mixed['efficientnet_b5'][0], mixed['efficientnet_b3'][0], mixed['convnext_tiny'][0], mixed['convnext_small'][0], mixed['convnext_base'][0]]))
+    standardized_l = list(map(lambda x: round(x * 100, 1), [standardized[i][0] for i in labels]))
+    filtered_l = list(map(lambda x: round(x * 100, 1), [filtered[i][0] for i in labels]))
+    masks_l = list(map(lambda x: round(x * 100, 1), [masks[i][0] for i in labels]))
+    mixed_l = list(map(lambda x: round(x * 100, 1), [mixed[i][0] for i in labels]))
 
     x = np.arange(len(labels))  # the label locations
     width = 0.2  # the width of the bars
